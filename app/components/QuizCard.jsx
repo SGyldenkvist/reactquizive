@@ -1,12 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import SlideToReveal from './SlideToReveal';
+import Animated, { 
+  FadeInRight, 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSpring, 
+} from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
 // This component receives the question data and a callback function
 export default function QuizCard({ questionData, onAnswerSelect }) {
   const { question, options, correctAnswer, id } = questionData;
   const [selectedOption, setSelectedOption] = useState(null);
   const [showAnswer, setShowAnswer] = useState(false);
+
+//En animation, der holder styr på kortets vandrette position:
+  const translateX = useSharedValue(0);
+
+//En gesture, der registrerer trækbevægelser:
+  const panGesture = Gesture.Pan()
+  .runOnJS(true)
+  .onUpdate((event) => { 
+    //console.log("Kortet trækkes: ", event.translationX);
+    translateX.value = event.translationX;
+  })
+  .onEnd(() => {
+    translateX.value = withSpring(0);
+  });
+
+  
+
+//En style der følger kortets vandrette position:
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: translateX.value }, {rotate: `${translateX.value / 50}deg`}, ],
+    };
+  });
+
+
+
 
   // Reset state when the question changes
   useEffect(() => {
@@ -39,51 +72,55 @@ export default function QuizCard({ questionData, onAnswerSelect }) {
 
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.questionText}>{question}</Text>
+    <GestureDetector gesture={panGesture}>
+      <Animated.View style={[styles.card, animatedStyle]} entering={FadeInRight.duration(1000).withInitialValues({
+        transform: [{ translateX: 300}],
+      })}>
+        <Text style={styles.questionText}>{question}</Text>
 
-      <View style={styles.optionsContainer}>
-        {options.map((option, index) => {
-          let buttonStyle = [styles.optionButton];
-          let textStyle = [styles.optionText];
+        <View style={styles.optionsContainer}>
+          {options.map((option, index) => {
+            let buttonStyle = [styles.optionButton];
+            let textStyle = [styles.optionText];
 
-          // Apply feedback styles ONLY if an option is selected AND the answer is revealed
-          if (selectedOption !== null && showAnswer) {
-            if (index === correctAnswer) {
-              buttonStyle.push(styles.correctOption);
-              textStyle.push(styles.correctText);
-            } else if (index === selectedOption) {
-              buttonStyle.push(styles.incorrectOption);
-              textStyle.push(styles.incorrectText);
-            } else {
-               buttonStyle.push(styles.disabledOption);
-               textStyle.push(styles.disabledText);
+            // Apply feedback styles ONLY if an option is selected AND the answer is revealed
+            if (selectedOption !== null && showAnswer) {
+              if (index === correctAnswer) {
+                buttonStyle.push(styles.correctOption);
+                textStyle.push(styles.correctText);
+              } else if (index === selectedOption) {
+                buttonStyle.push(styles.incorrectOption);
+                textStyle.push(styles.incorrectText);
+              } else {
+                buttonStyle.push(styles.disabledOption);
+                textStyle.push(styles.disabledText);
+              }
             }
-          }
 
-          return (
-            <TouchableOpacity
-              key={index}
-              style={buttonStyle}
-              onPress={() => handlePressOption(index)}
-              // Disable options only AFTER an option has been selected
-              // (Before revealing, the user might theoretically want to change, though we prevent it above)
-              // OR disable *after revealing* -> disabled={showAnswer}
-              disabled={selectedOption !== null}
-            >
-              <Text style={textStyle}>{option}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+            return (
+              <TouchableOpacity
+                key={index}
+                style={buttonStyle}
+                onPress={() => handlePressOption(index)}
+                // Disable options only AFTER an option has been selected
+                // (Before revealing, the user might theoretically want to change, though we prevent it above)
+                // OR disable *after revealing* -> disabled={showAnswer}
+                disabled={selectedOption !== null}
+              >
+                <Text style={textStyle}>{option}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-      {/* --- 4. CONDITIONALLY RENDER SlideToReveal --- */}
-      {/* Show the slider only AFTER an option is selected BUT BEFORE the answer is shown */}
-      {selectedOption !== null && !showAnswer && (
-        <SlideToReveal onEndReached={handleReveal} />
-      )}
+        {/* --- 4. CONDITIONALLY RENDER SlideToReveal --- */}
+        {/* Show the slider only AFTER an option is selected BUT BEFORE the answer is shown */}
+        {selectedOption !== null && !showAnswer && (
+          <SlideToReveal onEndReached={handleReveal} />
+        )}
 
-    </View>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 
